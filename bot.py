@@ -39,10 +39,8 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
-        # FIXED: Extraction target list safety check mapping
         embed = self.original_message.embeds[0]
         
-        # RE-CALCULATED STRUCTURAL MAPPING INDEX FOR SUB-ITEMS
         embed.set_field_at(2, name="📊 Status", value="🔴 Denied", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
         embed.set_field_at(4, name="🕒 Reviewed At", value=datetime.now().strftime('%A, %B %d, %Y %I:%M %p'), inline=True)
@@ -78,13 +76,31 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
 
 # 3. AUTOMATED DM VOUCH BUTTONS 
 class DMVouchButton(discord.ui.View):
-    def __init__(self, staff_message_id, applicant_id):
+    def __init__(self, staff_message_id, applicant_id, guild_id):
         super().__init__(timeout=None)
         self.staff_message_id = staff_message_id
         self.applicant_id = applicant_id
+        self.guild_id = guild_id
 
     @discord.ui.button(label="Vouch for Them", style=discord.ButtonStyle.green, emoji="👍")
     async def dm_vouch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = bot.get_guild(self.guild_id)
+        if not guild:
+            await interaction.response.send_message("❌ Internal server verification link error.", ephemeral=True)
+            return
+
+        # Fetch the voucher's profile from the guild to inspect their roles
+        member = guild.get_member(interaction.user.id)
+        if not member:
+            await interaction.response.send_message("❌ You must be a member of the Project Rev RP server to vouch!", ephemeral=True)
+            return
+
+        # NEW SECURITY RULE: Check if the voucher has the Whitelisted Role
+        has_whitelist = any(role.id == WHITELISTED_ROLE_ID for role in member.roles)
+        if not has_whitelist and not member.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Action Blocked! Only players who already have the **Whitelisted** role are authorized to vouch for applicants.", ephemeral=True)
+            return
+
         staff_channel = bot.get_channel(APPLICATION_LOG_CHANNEL_ID)
         if not staff_channel:
             await interaction.response.send_message("❌ Internal configuration link error.", ephemeral=True)
@@ -108,11 +124,9 @@ class DMVouchButton(discord.ui.View):
         app_data["vouch_count"] += 1
         app_data["vouchers"].append(interaction.user.id)
         
-        # FIXED: Extracting index position from embeds array list securely
         embed = message.embeds[0]
         vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
         
-        # FIXED TARGET SYSTEM CORRECTION INDEX 8 FOR SHIFTED VOUCHES FIELD
         embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
         await message.edit(embed=embed)
         
@@ -141,8 +155,6 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed = discord.Embed(title="📋 Whitelist Application", color=discord.Color.dark_theme())
         embed.description = f"**Applicant:** {interaction.user.mention}\n**Submitted:** {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}"
         
-        # Recalculated Field Mapping Indices:
-        # 0=Name, 1=Age, 2=Status, 3=Reviewed By, 4=Reviewed At, 5=Denial Reason, 6=Steam Link, 7=FiveM Code, 8=Vouches
         embed.add_field(name="👤 Name", value=self.name_input.value, inline=True)
         embed.add_field(name="🎂 Age", value=self.age_input.value, inline=True)
         embed.add_field(name="📊 Status", value="⏳ Pending Review", inline=True)
@@ -181,7 +193,8 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
                             description=f"Hello {found_member.mention}!\n\n**{interaction.user.name}** has just submitted a Whitelist Application to **Project Rev RP** and listed you as their reference voucher.\n\nIf you support their registration entry, click the button below to log your vouch automatically!",
                             color=discord.Color.blue()
                         )
-                        await found_member.send(embed=dm_embed, view=DMVouchButton(staff_msg.id, interaction.user.id))
+                        # Passed your Discord Guild ID to help the DM engine look up database profile variables later
+                        await found_member.send(embed=dm_embed, view=DMVouchButton(staff_msg.id, interaction.user.id, interaction.guild.id))
                     except discord.Forbidden:
                         pass
 
@@ -220,7 +233,6 @@ class StaffButtons(discord.ui.View):
             except Exception:
                 pass
 
-        # FIXED: Added array slice index extraction point mapping
         embed = interaction.message.embeds[0]
         embed.set_field_at(2, name="📊 Status", value="🟢 Approved", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
@@ -243,7 +255,7 @@ class StaffButtons(discord.ui.View):
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            await logs_channel.send(log_embed)
+            await logs_channel.send(embed=log_embed)
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger, emoji="❌")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -255,6 +267,12 @@ class StaffButtons(discord.ui.View):
 
     @discord.ui.button(label="Vouch", style=discord.ButtonStyle.secondary, emoji="👍")
     async def vouch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # NEW SECURITY RULE (Manual channel click check): Ensure user has Whitelisted Role
+        has_whitelist = any(role.id == WHITELISTED_ROLE_ID for role in interaction.user.roles)
+        if not has_whitelist and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Action Blocked! Only players who already have the **Whitelisted** role are authorized to vouch for applicants.", ephemeral=True)
+            return
+
         app_data = active_applications.get(interaction.message.id)
         if not app_data:
             await interaction.response.send_message("❌ This application has already been resolved.", ephemeral=True)
@@ -271,11 +289,9 @@ class StaffButtons(discord.ui.View):
         app_data["vouch_count"] += 1
         app_data["vouchers"].append(interaction.user.id)
         
-        # FIXED: Added array slice index extraction point mapping
         embed = interaction.message.embeds[0]
         vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
         
-        # FIXED TARGET SYSTEM CORRECTION INDEX 8 FOR SHIFTED REVIEWS FIELD
         embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f"👍 {interaction.user.mention} vouched for this applicant.", ephemeral=False)
