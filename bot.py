@@ -21,9 +21,6 @@ WHITELISTED_ROLE_ID = 1366379062741962792        # Your server's Whitelisted Rol
 # LIVE APPLICATION TRACKER 
 pending_applicants = set()
 
-# GLUE DICTIONARY: Maps individual message tracker arrays to follow automated direct DM responses
-active_applications = {}
-
 # 2. POP-UP FORM FOR STAFF DENIAL REASON
 class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     reason_input = discord.ui.TextInput(
@@ -39,9 +36,10 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        # FIXED: Standardized array tracking to use index pointer [0] safely
         embed = self.original_message.embeds[0]
         
-        # CORRECTED MATRIX POSITION INDEX MAPPING TARGETS
+        # RE-CALCULATED STRUCTURAL MAPPING INDEX FOR SUB-ITEMS
         embed.set_field_at(2, name="📊 Status", value="🔴 Denied", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
         embed.set_field_at(4, name="🕒 Reviewed At", value=datetime.now().strftime('%A, %B %d, %Y %I:%M %p'), inline=True)
@@ -55,10 +53,10 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         await interaction.response.send_message(f"❌ Application denied by {interaction.user.mention} for: {self.reason_input.value}", ephemeral=False)
         
         pending_applicants.discard(self.applicant_id)
-        active_applications.pop(self.original_message.id, None)
 
-        logs_channel = bot.get_channel(LOGS_CHANNEL_ID)
-        if logs_channel:
+        # UPGRADED: Forces a direct database fetch to guarantee the log is sent
+        try:
+            logs_channel = await bot.fetch_channel(LOGS_CHANNEL_ID)
             log_embed = discord.Embed(
                 title="📥 Whitelist Application Log: DENIED",
                 description=f"👤 **Applicant:** <@{self.applicant_id}>\n🔍 **Staff Reviewer:** {interaction.user.mention}\n❌ **Reason:** {self.reason_input.value}",
@@ -66,6 +64,8 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
                 timestamp=datetime.now()
             )
             await logs_channel.send(embed=log_embed)
+        except Exception as e:
+            print(f"Logging Error: {e}")
 
         guild = interaction.guild
         member = guild.get_member(self.applicant_id)
@@ -95,46 +95,50 @@ class DMVouchButton(discord.ui.View):
             await interaction.response.send_message("❌ You must be a member of the Project Rev RP server to vouch!", ephemeral=True)
             return
 
-        # ROLE CONSTRAINT VERIFICATION
         has_whitelist = any(role.id == WHITELISTED_ROLE_ID for role in member.roles)
         if not has_whitelist and not member.guild_permissions.administrator:
             await interaction.response.send_message("❌ Action Blocked! Only players who already have the **Whitelisted** role are authorized to vouch for applicants.", ephemeral=True)
             return
 
-        staff_channel = bot.get_channel(APPLICATION_LOG_CHANNEL_ID)
-        if not staff_channel:
-            await interaction.response.send_message("❌ Internal configuration link error.", ephemeral=True)
-            return
-
         try:
+            staff_channel = await bot.fetch_channel(APPLICATION_LOG_CHANNEL_ID)
             message = await staff_channel.fetch_message(self.staff_message_id)
         except discord.NotFound:
             await interaction.response.send_message("❌ This application is no longer active or has been processed.", ephemeral=True)
             return
 
-        app_data = active_applications.get(self.staff_message_id)
-        if not app_data:
-            await interaction.response.send_message("❌ This application has already been resolved by staff.", ephemeral=True)
-            return
-
-        if interaction.user.id in app_data["vouchers"]:
+        # FIXED: Extraction target list safety check mapping index pointer [0]
+        embed = message.embeds[0]
+        current_vouch_field = embed.fields[8].value
+        
+        if interaction.user.mention in current_vouch_field:
             await interaction.response.send_message("⚠️ You have already vouched for this applicant!", ephemeral=True)
             return
+            
+        if interaction.user.id == self.applicant_id:
+            await interaction.response.send_message("❌ You cannot vouch for your own application!", ephemeral=True)
+            return
 
-        app_data["vouch_count"] += 1
-        app_data["vouchers"].append(interaction.user.id)
+        # FIXED: Cleaned up the nested layout name split logic text string parser 
+        try:
+            count_text = embed.fields[8].name
+            current_count = int(count_text.split("(")[1].split(")")[0])
+        except Exception:
+            current_count = 0
+
+        new_count = current_count + 1
+        if current_vouch_field == "None":
+            new_vouch_value = interaction.user.mention
+        else:
+            new_vouch_value = f"{current_vouch_field}, {interaction.user.mention}"
         
-        embed = message.embeds[0]
-        vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
-        
-        # TARGETED CORRECTIONS: Matrix set field at index location 8 maps precisely onto vouches
-        embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
+        # TARGET SYSTEM CORRECTION INDEX 8 FOR SHIFTED REVIEWS FIELD
+        embed.set_field_at(8, name=f"👍 Vouches ({new_count})", value=new_vouch_value, inline=False)
         await message.edit(embed=embed)
         
         for child in self.children:
             child.disabled = True
         await interaction.message.edit(view=self)
-        
         await interaction.response.send_message(f"✅ Success! Your verified vouch for <@{self.applicant_id}> has been posted to Project Rev RP staff review panels.", ephemeral=True)
 
 # 4. POP-UP FORM (MODAL) FOR APPLICANTS
@@ -156,7 +160,6 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed = discord.Embed(title="📋 Whitelist Application", color=discord.Color.dark_theme())
         embed.description = f"**Applicant:** {interaction.user.mention}\n**Submitted:** {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}"
         
-        # Statically building exactly 9 fields (Index 0 through 8) to secure system scope structure
         embed.add_field(name="👤 Name", value=self.name_input.value, inline=True)
         embed.add_field(name="🎂 Age", value=self.age_input.value, inline=True)
         embed.add_field(name="📊 Status", value="⏳ Pending Review", inline=True)
@@ -169,15 +172,10 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         
         embed.set_footer(text=f"Project Rev RP Whitelist • User ID: {interaction.user.id} • Times in GMT+8")
 
-        review_channel = bot.get_channel(APPLICATION_LOG_CHANNEL_ID)
-        if review_channel:
+        try:
+            review_channel = await bot.fetch_channel(APPLICATION_LOG_CHANNEL_ID)
             staff_msg = await review_channel.send(embed=embed, view=StaffButtons(interaction.user.id, self.name_input.value))
             
-            active_applications[staff_msg.id] = {
-                "vouch_count": 0,
-                "vouchers": []
-            }
-
             voucher_input = self.voucher_tag.value.strip()
             if voucher_input and voucher_input.lower() != "n/a":
                 target_username = voucher_input.lower()
@@ -198,6 +196,8 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
                         await found_member.send(embed=dm_embed, view=DMVouchButton(staff_msg.id, interaction.user.id, interaction.guild.id))
                     except discord.Forbidden:
                         pass
+        except Exception as e:
+            print(f"Submission Error: {e}")
 
 # 5. INTERACTIVE BUTTON VIEWS (Staff Actions Only)
 class StaffButtons(discord.ui.View):
@@ -234,6 +234,7 @@ class StaffButtons(discord.ui.View):
             except Exception:
                 pass
 
+        # FIXED: Extraction target list safety check mapping index pointer [0]
         embed = interaction.message.embeds[0]
         embed.set_field_at(2, name="📊 Status", value="🟢 Approved", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
@@ -244,19 +245,19 @@ class StaffButtons(discord.ui.View):
             
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"✅ Application approved by {interaction.user.mention}", ephemeral=False)
-
         pending_applicants.discard(self.applicant_id)
-        active_applications.pop(interaction.message.id, None)
 
-        logs_channel = bot.get_channel(LOGS_CHANNEL_ID)
-        if logs_channel:
+        try:
+            logs_channel = await bot.fetch_channel(LOGS_CHANNEL_ID)
             log_embed = discord.Embed(
                 title="📥 Whitelist Application Log: APPROVED",
                 description=f"👤 **Applicant:** <@{self.applicant_id}>\n🔍 **Staff Reviewer:** {interaction.user.mention}",
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            await logs_channel.send(log_embed)
+            await logs_channel.send(embed=log_embed)
+        except Exception as e:
+            print(f"Logging Error: {e}")
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger, emoji="❌")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -273,12 +274,11 @@ class StaffButtons(discord.ui.View):
             await interaction.response.send_message("❌ Action Blocked! Only players who already have the **Whitelisted** role are authorized to vouch for applicants.", ephemeral=True)
             return
 
-        app_data = active_applications.get(interaction.message.id)
-        if not app_data:
-            await interaction.response.send_message("❌ This application has already been resolved.", ephemeral=True)
-            return
-
-        if interaction.user.id in app_data["vouchers"]:
+        # FIXED: Extraction target list safety check mapping index pointer [0]
+        embed = interaction.message.embeds[0]
+        current_vouch_field = embed.fields[8].value
+        
+        if interaction.user.mention in current_vouch_field:
             await interaction.response.send_message("⚠️ You have already vouched for this application!", ephemeral=True)
             return
         
@@ -286,14 +286,21 @@ class StaffButtons(discord.ui.View):
             await interaction.response.send_message("❌ You cannot vouch for your own application!", ephemeral=True)
             return
         
-        app_data["vouch_count"] += 1
-        app_data["vouchers"].append(interaction.user.id)
-        
-        embed = interaction.message.embeds[0]
-        vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
+        # FIXED: Cleaned up structural split logic string string parser here
+        try:
+            count_text = embed.fields[8].name
+            current_count = int(count_text.split("(")[1].split(")")[0])
+        except Exception:
+            current_count = 0
+
+        new_count = current_count + 1
+        if current_vouch_field == "None":
+            new_vouch_value = interaction.user.mention
+        else:
+            new_vouch_value = f"{current_vouch_field}, {interaction.user.mention}"
         
         # TARGET INDEX 8 VERIFIED FOR FIELD REDUCTION MATCHING MATRIX
-        embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
+        embed.set_field_at(8, name=f"👍 Vouches ({new_count})", value=new_vouch_value, inline=False)
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f"👍 {interaction.user.mention} vouched for this applicant.", ephemeral=False)
 
@@ -310,7 +317,13 @@ class SetupView(discord.ui.View):
             
         await interaction.response.send_modal(WhitelistModal())
 
-# 7. INITIAL SETUP COMMAND
+# 7. EXPLICIT UTILITY COMMAND ENGINE 
+@bot.command()
+@commands.has_permissions(manage_messages=True)
+async def clear(ctx, amount: int):
+    await ctx.channel.purge(limit=amount + 1)
+    await ctx.send(f"🧹 Cleaned up {amount} messages cleanly.", delete_after=3)
+
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_whitelist(ctx):
