@@ -12,7 +12,7 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # CORE ROUTING CONFIGURATION
-PUBLIC_APPLY_CHANNEL_ID = 1489533454969208883   # Public intake portal channel
+PUBLIC_APPLY_CHANNEL_ID = 1505548554263990333   # Public intake portal channel
 APPLICATION_LOG_CHANNEL_ID = 1505374160761655436  # Private staff triage channel
 LOGS_CHANNEL_ID = 1505376555432415262            # Permanent action logs channel
 STAFF_ROLE_ID = 844656256031260672              # Your server's Staff Role ID
