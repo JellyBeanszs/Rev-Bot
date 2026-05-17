@@ -26,7 +26,7 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     reason_input = discord.ui.TextInput(
         label="Reason for Denial", 
         style=discord.TextStyle.paragraph, 
-        placeholder="e.g., Incorrect connection code, fake profile link...", 
+        placeholder="e.g., Incorrect txAdmin code, fake profile link...", 
         required=True
     )
 
@@ -122,7 +122,7 @@ class DMVouchButton(discord.ui.View):
             await interaction.followup.send("❌ You cannot vouch for your own application!", ephemeral=True)
             return
 
-        # FIXED VALUE STRING TOKENIZER ENGINE
+        # FIXED STRING TOKENIZER PARSER ENGINE
         try:
             count_text = embed.fields[8].name
             current_count = int(count_text.split("(")[1].split(")")[0])
@@ -148,7 +148,7 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
     name_input = discord.ui.TextInput(label="👤 Name", placeholder="Your character or real name...", required=True)
     age_input = discord.ui.TextInput(label="🎂 Age", placeholder="Your age...", required=True, min_length=2, max_length=2)
     steam_url = discord.ui.TextInput(label="🌐 Steam Profile Link", placeholder="https://steamcommunity.com...", required=True)
-    fivem_code = discord.ui.TextInput(label="🔑 FiveM Connection Code", placeholder="E.g., 5m:xxxx or connection token...", required=True)
+    fivem_code = discord.ui.TextInput(label="🔑 txAdmin Request Code", placeholder="E.g., XXXXXX or connection ID...", required=True)
     voucher_tag = discord.ui.TextInput(label="💬 Voucher Discord Username (Optional)", placeholder="Leave blank or type N/A if none...", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -169,7 +169,7 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed.add_field(name="🕒 Reviewed At", value="N/A", inline=True)
         embed.add_field(name="❌ Denial Reason", value="N/A", inline=False)
         embed.add_field(name="🌐 Steam Profile Link", value=self.steam_url.value, inline=False)
-        embed.add_field(name="🔑 FiveM Connection Code", value=self.fivem_code.value, inline=False)
+        embed.add_field(name="🔑 txAdmin Request Code", value=self.fivem_code.value, inline=False)
         embed.add_field(name="👍 Vouches (0)", value="None", inline=False)
         
         embed.set_footer(text=f"Project Rev RP Whitelist • User ID: {interaction.user.id} • Times in GMT+8")
