@@ -29,7 +29,7 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     reason_input = discord.ui.TextInput(
         label="Reason for Denial", 
         style=discord.TextStyle.paragraph, 
-        placeholder="e.g., Fake profile link, age requirement mismatch...", 
+        placeholder="e.g., Incorrect connection code, fake profile link...", 
         required=True
     )
 
@@ -39,9 +39,10 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
-        # FIXED: Extracting index position from embeds array list securely
+        # FIXED: Extraction target list safety check mapping
         embed = self.original_message.embeds[0]
         
+        # RE-CALCULATED STRUCTURAL MAPPING INDEX FOR SUB-ITEMS
         embed.set_field_at(2, name="📊 Status", value="🔴 Denied", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
         embed.set_field_at(4, name="🕒 Reviewed At", value=datetime.now().strftime('%A, %B %d, %Y %I:%M %p'), inline=True)
@@ -55,7 +56,6 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         await interaction.response.send_message(f"❌ Application denied by {interaction.user.mention} for: {self.reason_input.value}", ephemeral=False)
         
         pending_applicants.discard(self.applicant_id)
-        # FIXED: Prevent KeyError crash if app had no voucher mapping tracking context
         active_applications.pop(self.original_message.id, None)
 
         logs_channel = bot.get_channel(LOGS_CHANNEL_ID)
@@ -108,11 +108,12 @@ class DMVouchButton(discord.ui.View):
         app_data["vouch_count"] += 1
         app_data["vouchers"].append(interaction.user.id)
         
-        # FIXED: Extraction target list safety check mapping
+        # FIXED: Extracting index position from embeds array list securely
         embed = message.embeds[0]
         vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
         
-        embed.set_field_at(7, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
+        # FIXED TARGET SYSTEM CORRECTION INDEX 8 FOR SHIFTED VOUCHES FIELD
+        embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
         await message.edit(embed=embed)
         
         for child in self.children:
@@ -121,11 +122,12 @@ class DMVouchButton(discord.ui.View):
         
         await interaction.response.send_message(f"✅ Success! Your verified vouch for <@{self.applicant_id}> has been posted to Project Rev RP staff review panels.", ephemeral=True)
 
-# 4. POP-UP FORM (MODAL) FOR APPLICANTS 
+# 4. POP-UP FORM (MODAL) FOR APPLICANTS
 class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application"):
     name_input = discord.ui.TextInput(label="👤 Name", placeholder="Your character or real name...", required=True)
     age_input = discord.ui.TextInput(label="🎂 Age", placeholder="Your age...", required=True, min_length=2, max_length=2)
     steam_url = discord.ui.TextInput(label="🌐 Steam Profile Link", placeholder="https://steamcommunity.com...", required=True)
+    fivem_code = discord.ui.TextInput(label="🔑 FiveM Connection Code", placeholder="E.g., 5m:xxxx or connection token...", required=True)
     voucher_tag = discord.ui.TextInput(label="💬 Voucher Discord Username (Optional)", placeholder="Leave blank or type N/A if none...", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -139,6 +141,8 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed = discord.Embed(title="📋 Whitelist Application", color=discord.Color.dark_theme())
         embed.description = f"**Applicant:** {interaction.user.mention}\n**Submitted:** {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}"
         
+        # Recalculated Field Mapping Indices:
+        # 0=Name, 1=Age, 2=Status, 3=Reviewed By, 4=Reviewed At, 5=Denial Reason, 6=Steam Link, 7=FiveM Code, 8=Vouches
         embed.add_field(name="👤 Name", value=self.name_input.value, inline=True)
         embed.add_field(name="🎂 Age", value=self.age_input.value, inline=True)
         embed.add_field(name="📊 Status", value="⏳ Pending Review", inline=True)
@@ -146,6 +150,7 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed.add_field(name="🕒 Reviewed At", value="N/A", inline=True)
         embed.add_field(name="❌ Denial Reason", value="N/A", inline=False)
         embed.add_field(name="🌐 Steam Profile Link", value=self.steam_url.value, inline=False)
+        embed.add_field(name="🔑 FiveM Connection Code", value=self.fivem_code.value, inline=False)
         embed.add_field(name="👍 Vouches (0)", value="None", inline=False)
         
         embed.set_footer(text=f"Project Rev RP Whitelist • User ID: {interaction.user.id} • Times in GMT+8")
@@ -238,7 +243,7 @@ class StaffButtons(discord.ui.View):
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            await logs_channel.send(embed=log_embed)
+            await logs_channel.send(log_embed)
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger, emoji="❌")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -266,12 +271,12 @@ class StaffButtons(discord.ui.View):
         app_data["vouch_count"] += 1
         app_data["vouchers"].append(interaction.user.id)
         
-        # FIXED: Extraction target list safety check mapping
+        # FIXED: Added array slice index extraction point mapping
         embed = interaction.message.embeds[0]
         vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
         
-        # TARGET SYSTEM CORRECTION INDEX 7
-        embed.set_field_at(7, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
+        # FIXED TARGET SYSTEM CORRECTION INDEX 8 FOR SHIFTED REVIEWS FIELD
+        embed.set_field_at(8, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f"👍 {interaction.user.mention} vouched for this applicant.", ephemeral=False)
 
