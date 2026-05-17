@@ -33,7 +33,7 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     def __init__(self, original_message, applicant_id):
         super().__init__()
         self.original_message = original_message
-        embed = self.original_message.embeds[0]
+        self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
         embed = self.original_message.embeds[0]
@@ -171,7 +171,7 @@ class StaffButtons(discord.ui.View):
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            await logs_channel.send(embed=log_embed)
+            await logs_channel.send(log_embed)
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger, emoji="❌")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -247,6 +247,5 @@ async def on_ready():
     print("---------------------------------")
 
 # 7. SECURE TOKEN LOADER
-# This line stays exactly like this. No password goes here.
 keep_alive()
 bot.run(os.getenv('DISCORD_TOKEN'))
