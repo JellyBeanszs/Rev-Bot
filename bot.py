@@ -125,7 +125,8 @@ class DMVouchButton(discord.ui.View):
         # FIXED STRING TOKENIZER PARSER ENGINE
         try:
             count_text = embed.fields[8].name
-            current_count = int(count_text.split("(")[1].split(")")[0])
+            parts = count_text.split("(")
+            current_count = int(parts[1].split(")")[0])
         except Exception:
             current_count = 0
 
@@ -295,7 +296,8 @@ class StaffButtons(discord.ui.View):
         # FIXED STRING PARSER TOKENIZER ENGINE
         try:
             count_text = embed.fields[8].name
-            current_count = int(count_text.split("(")[1].split(")")[0])
+            parts = count_text.split("(")
+            current_count = int(parts[1].split(")")[0])
         except Exception:
             current_count = 0
 
@@ -316,6 +318,12 @@ class SetupView(discord.ui.View):
 
     @discord.ui.button(label="Click to Start Applying", style=discord.ButtonStyle.success, emoji="📥")
     async def apply_now(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # NEW CONDITION BLOCK: Scans for existing whitelisted status properties
+        has_role = any(role.id == WHITELISTED_ROLE_ID for role in interaction.user.roles)
+        if has_role:
+            await interaction.response.send_message("❌ Access Blocked! You are already completely whitelisted on Project Rev RP. You do not need to apply again.", ephemeral=True)
+            return
+
         if interaction.user.id in pending_applicants:
             await interaction.response.send_message("❌ You cannot submit multiple applications! You already have a form pending staff review.", ephemeral=True)
             return
