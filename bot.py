@@ -18,8 +18,11 @@ LOGS_CHANNEL_ID = 1505376555432415262            # Permanent action logs channel
 STAFF_ROLE_ID = 844656256031260672              # Your server's Staff Role ID
 WHITELISTED_ROLE_ID = 1366379062741962792        # Your server's Whitelisted Role ID
 
-# LIVE APPLICATION TRACKER (Keeps tracks of active pending users in memory)
+# LIVE APPLICATION TRACKER 
 pending_applicants = set()
+
+# GLUE DICTIONARY: Maps individual message tracker arrays to follow automated direct DM responses
+active_applications = {}
 
 # 2. POP-UP FORM FOR STAFF DENIAL REASON
 class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
@@ -36,16 +39,14 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
-        # FIXED: Extracting index position [0] from embeds array list securely
+        # FIXED: Extracting index position from embeds array list securely
         embed = self.original_message.embeds[0]
         
-        # RE-ALIGNED STRUCTURAL MAPPING INDEX FOR SUB-ITEMS
         embed.set_field_at(2, name="📊 Status", value="🔴 Denied", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
         embed.set_field_at(4, name="🕒 Reviewed At", value=datetime.now().strftime('%A, %B %d, %Y %I:%M %p'), inline=True)
         embed.set_field_at(5, name="❌ Denial Reason", value=self.reason_input.value, inline=False)
 
-        # Disable all buttons instantly on submission
         view = discord.ui.View.from_message(self.original_message)
         for child in view.children:
             child.disabled = True
@@ -53,8 +54,9 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         await self.original_message.edit(embed=embed, view=view)
         await interaction.response.send_message(f"❌ Application denied by {interaction.user.mention} for: {self.reason_input.value}", ephemeral=False)
         
-        # REMOVE FROM TRACKER: They are no longer pending
         pending_applicants.discard(self.applicant_id)
+        # FIXED: Prevent KeyError crash if app had no voucher mapping tracking context
+        active_applications.pop(self.original_message.id, None)
 
         logs_channel = bot.get_channel(LOGS_CHANNEL_ID)
         if logs_channel:
@@ -74,26 +76,69 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
             except discord.Forbidden:
                 pass
 
-# 3. POP-UP FORM (MODAL) FOR APPLICANTS (Streamlined Options)
+# 3. AUTOMATED DM VOUCH BUTTONS 
+class DMVouchButton(discord.ui.View):
+    def __init__(self, staff_message_id, applicant_id):
+        super().__init__(timeout=None)
+        self.staff_message_id = staff_message_id
+        self.applicant_id = applicant_id
+
+    @discord.ui.button(label="Vouch for Them", style=discord.ButtonStyle.green, emoji="👍")
+    async def dm_vouch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_channel = bot.get_channel(APPLICATION_LOG_CHANNEL_ID)
+        if not staff_channel:
+            await interaction.response.send_message("❌ Internal configuration link error.", ephemeral=True)
+            return
+
+        try:
+            message = await staff_channel.fetch_message(self.staff_message_id)
+        except discord.NotFound:
+            await interaction.response.send_message("❌ This application is no longer active or has been processed.", ephemeral=True)
+            return
+
+        app_data = active_applications.get(self.staff_message_id)
+        if not app_data:
+            await interaction.response.send_message("❌ This application has already been resolved by staff.", ephemeral=True)
+            return
+
+        if interaction.user.id in app_data["vouchers"]:
+            await interaction.response.send_message("⚠️ You have already vouched for this applicant!", ephemeral=True)
+            return
+
+        app_data["vouch_count"] += 1
+        app_data["vouchers"].append(interaction.user.id)
+        
+        # FIXED: Extraction target list safety check mapping
+        embed = message.embeds[0]
+        vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
+        
+        embed.set_field_at(7, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
+        await message.edit(embed=embed)
+        
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+        
+        await interaction.response.send_message(f"✅ Success! Your verified vouch for <@{self.applicant_id}> has been posted to Project Rev RP staff review panels.", ephemeral=True)
+
+# 4. POP-UP FORM (MODAL) FOR APPLICANTS 
 class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application"):
     name_input = discord.ui.TextInput(label="👤 Name", placeholder="Your character or real name...", required=True)
     age_input = discord.ui.TextInput(label="🎂 Age", placeholder="Your age...", required=True, min_length=2, max_length=2)
     steam_url = discord.ui.TextInput(label="🌐 Steam Profile Link", placeholder="https://steamcommunity.com...", required=True)
+    voucher_tag = discord.ui.TextInput(label="💬 Voucher Discord Username (Optional)", placeholder="Leave blank or type N/A if none...", required=False)
 
     async def on_submit(self, interaction: discord.Interaction):
         if interaction.user.id in pending_applicants:
             await interaction.response.send_message("⚠️ You already have an active application pending staff review!", ephemeral=True)
             return
 
-        # LOCK USER IN TRACKER
         pending_applicants.add(interaction.user.id)
         await interaction.response.send_message("✅ Your application has been submitted for staff review!", ephemeral=True)
         
         embed = discord.Embed(title="📋 Whitelist Application", color=discord.Color.dark_theme())
         embed.description = f"**Applicant:** {interaction.user.mention}\n**Submitted:** {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}"
         
-        # Recalculated Field Mapping Indices:
-        # Index 0=Name, Index 1=Age, Index 2=Status, Index 3=Reviewed By, Index 4=Reviewed At, Index 5=Denial Reason, Index 6=Steam Link, Index 7=Vouches
         embed.add_field(name="👤 Name", value=self.name_input.value, inline=True)
         embed.add_field(name="🎂 Age", value=self.age_input.value, inline=True)
         embed.add_field(name="📊 Status", value="⏳ Pending Review", inline=True)
@@ -107,16 +152,40 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
 
         review_channel = bot.get_channel(APPLICATION_LOG_CHANNEL_ID)
         if review_channel:
-            await review_channel.send(embed=embed, view=StaffButtons(interaction.user.id, self.name_input.value))
+            staff_msg = await review_channel.send(embed=embed, view=StaffButtons(interaction.user.id, self.name_input.value))
+            
+            active_applications[staff_msg.id] = {
+                "vouch_count": 0,
+                "vouchers": []
+            }
 
-# 4. INTERACTIVE BUTTON VIEWS (Staff vs Player Logic)
+            voucher_input = self.voucher_tag.value.strip()
+            if voucher_input and voucher_input.lower() != "n/a":
+                target_username = voucher_input.lower()
+                found_member = None
+                
+                for member in interaction.guild.members:
+                    if member.name.lower() == target_username:
+                        found_member = member
+                        break
+                
+                if found_member and found_member.id != interaction.user.id:
+                    try:
+                        dm_embed = discord.Embed(
+                            title="👍 Project Rev RP Vouch Request",
+                            description=f"Hello {found_member.mention}!\n\n**{interaction.user.name}** has just submitted a Whitelist Application to **Project Rev RP** and listed you as their reference voucher.\n\nIf you support their registration entry, click the button below to log your vouch automatically!",
+                            color=discord.Color.blue()
+                        )
+                        await found_member.send(embed=dm_embed, view=DMVouchButton(staff_msg.id, interaction.user.id))
+                    except discord.Forbidden:
+                        pass
+
+# 5. INTERACTIVE BUTTON VIEWS (Staff Actions Only)
 class StaffButtons(discord.ui.View):
     def __init__(self, applicant_id, character_name):
         super().__init__(timeout=None)
         self.applicant_id = applicant_id
         self.character_name = character_name
-        self.vouch_count = 0
-        self.vouchers = []
 
     def is_staff(self, member: discord.Member) -> bool:
         return any(role.id == STAFF_ROLE_ID for role in member.roles) or member.guild_permissions.administrator
@@ -158,8 +227,8 @@ class StaffButtons(discord.ui.View):
         await interaction.message.edit(embed=embed, view=self)
         await interaction.response.send_message(f"✅ Application approved by {interaction.user.mention}", ephemeral=False)
 
-        # REMOVE FROM TRACKER
         pending_applicants.discard(self.applicant_id)
+        active_applications.pop(interaction.message.id, None)
 
         logs_channel = bot.get_channel(LOGS_CHANNEL_ID)
         if logs_channel:
@@ -181,7 +250,12 @@ class StaffButtons(discord.ui.View):
 
     @discord.ui.button(label="Vouch", style=discord.ButtonStyle.secondary, emoji="👍")
     async def vouch(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id in self.vouchers:
+        app_data = active_applications.get(interaction.message.id)
+        if not app_data:
+            await interaction.response.send_message("❌ This application has already been resolved.", ephemeral=True)
+            return
+
+        if interaction.user.id in app_data["vouchers"]:
             await interaction.response.send_message("⚠️ You have already vouched for this application!", ephemeral=True)
             return
         
@@ -189,19 +263,19 @@ class StaffButtons(discord.ui.View):
             await interaction.response.send_message("❌ You cannot vouch for your own application!", ephemeral=True)
             return
         
-        self.vouch_count += 1
-        self.vouchers.append(interaction.user.id)
+        app_data["vouch_count"] += 1
+        app_data["vouchers"].append(interaction.user.id)
         
         # FIXED: Extraction target list safety check mapping
         embed = interaction.message.embeds[0]
-        vouch_mentions = ", ".join([f"<@{uid}>" for uid in self.vouchers])
+        vouch_mentions = ", ".join([f"<@{uid}>" for uid in app_data["vouchers"]])
         
         # TARGET SYSTEM CORRECTION INDEX 7
-        embed.set_field_at(7, name=f"👍 Vouches ({self.vouch_count})", value=vouch_mentions, inline=False)
+        embed.set_field_at(7, name=f"👍 Vouches ({app_data['vouch_count']})", value=vouch_mentions, inline=False)
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f"👍 {interaction.user.mention} vouched for this applicant.", ephemeral=False)
 
-# 5. PUBLIC ENTRY CHANNEL INTERFACE (Click to Start)
+# 6. PUBLIC ENTRY CHANNEL INTERFACE (Click to Start)
 class SetupView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -214,7 +288,7 @@ class SetupView(discord.ui.View):
             
         await interaction.response.send_modal(WhitelistModal())
 
-# 6. INITIAL SETUP COMMAND
+# 7. INITIAL SETUP COMMAND
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_whitelist(ctx):
@@ -246,6 +320,6 @@ async def on_ready():
     print(f"Logged in successfully as: {bot.user.name}")
     print("---------------------------------")
 
-# 7. SECURE TOKEN LOADER
+# 8. SECURE TOKEN LOADER
 keep_alive()
 bot.run(os.getenv('DISCORD_TOKEN'))
