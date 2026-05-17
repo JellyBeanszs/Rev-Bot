@@ -33,7 +33,7 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     def __init__(self, original_message, applicant_id):
         super().__init__()
         self.original_message = original_message
-        self.applicant_id = applicant_id
+        embed = self.original_message.embeds[0]
 
     async def on_submit(self, interaction: discord.Interaction):
         embed = self.original_message.embeds[0]
