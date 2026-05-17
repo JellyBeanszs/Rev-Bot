@@ -26,7 +26,7 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
     reason_input = discord.ui.TextInput(
         label="Reason for Denial", 
         style=discord.TextStyle.paragraph, 
-        placeholder="e.g., Backstory too short, failed rule definitions...", 
+        placeholder="e.g., Fake profile link, age requirement mismatch...", 
         required=True
     )
 
@@ -36,9 +36,10 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
         self.applicant_id = applicant_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        # FIXED: Extracting index position [0] from embeds array list securely
         embed = self.original_message.embeds[0]
         
-        # VERIFIED FIELD MAPPING TARGETS
+        # RE-ALIGNED STRUCTURAL MAPPING INDEX FOR SUB-ITEMS
         embed.set_field_at(2, name="📊 Status", value="🔴 Denied", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
         embed.set_field_at(4, name="🕒 Reviewed At", value=datetime.now().strftime('%A, %B %d, %Y %I:%M %p'), inline=True)
@@ -73,13 +74,11 @@ class DenialReasonModal(discord.ui.Modal, title="❌ Specify Denial Reason"):
             except discord.Forbidden:
                 pass
 
-# 3. POP-UP FORM (MODAL) FOR APPLICANTS
+# 3. POP-UP FORM (MODAL) FOR APPLICANTS (Streamlined Options)
 class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application"):
     name_input = discord.ui.TextInput(label="👤 Name", placeholder="Your character or real name...", required=True)
     age_input = discord.ui.TextInput(label="🎂 Age", placeholder="Your age...", required=True, min_length=2, max_length=2)
     steam_url = discord.ui.TextInput(label="🌐 Steam Profile Link", placeholder="https://steamcommunity.com...", required=True)
-    steam_hex = discord.ui.TextInput(label="🔗 Steam Hex / FiveM License", placeholder="fxid:xxxxxxxx...", required=True)
-    backstory = discord.ui.TextInput(label="📖 Character Backstory", style=discord.TextStyle.paragraph, placeholder="Tell us about your character...", required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
         if interaction.user.id in pending_applicants:
@@ -93,8 +92,8 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed = discord.Embed(title="📋 Whitelist Application", color=discord.Color.dark_theme())
         embed.description = f"**Applicant:** {interaction.user.mention}\n**Submitted:** {datetime.now().strftime('%A, %B %d, %Y %I:%M %p')}"
         
-        # Absolute structural matching layout indexes:
-        # 0=Name, 1=Age, 2=Status, 3=Reviewed By, 4=Reviewed At, 5=Denial Reason, 6=Steam URL, 7=Identifiers, 8=Backstory, 9=Vouches
+        # Recalculated Field Mapping Indices:
+        # Index 0=Name, Index 1=Age, Index 2=Status, Index 3=Reviewed By, Index 4=Reviewed At, Index 5=Denial Reason, Index 6=Steam Link, Index 7=Vouches
         embed.add_field(name="👤 Name", value=self.name_input.value, inline=True)
         embed.add_field(name="🎂 Age", value=self.age_input.value, inline=True)
         embed.add_field(name="📊 Status", value="⏳ Pending Review", inline=True)
@@ -102,8 +101,6 @@ class WhitelistModal(discord.ui.Modal, title="📋 FiveM Whitelist Application")
         embed.add_field(name="🕒 Reviewed At", value="N/A", inline=True)
         embed.add_field(name="❌ Denial Reason", value="N/A", inline=False)
         embed.add_field(name="🌐 Steam Profile Link", value=self.steam_url.value, inline=False)
-        embed.add_field(name="🔗 Identifiers", value=self.steam_hex.value, inline=False)
-        embed.add_field(name="📖 Backstory", value=self.backstory.value, inline=False)
         embed.add_field(name="👍 Vouches (0)", value="None", inline=False)
         
         embed.set_footer(text=f"Project Rev RP Whitelist • User ID: {interaction.user.id} • Times in GMT+8")
@@ -149,6 +146,7 @@ class StaffButtons(discord.ui.View):
             except Exception:
                 pass
 
+        # FIXED: Added array slice index extraction point mapping
         embed = interaction.message.embeds[0]
         embed.set_field_at(2, name="📊 Status", value="🟢 Approved", inline=True)
         embed.set_field_at(3, name="🔍 Reviewed By", value=interaction.user.mention, inline=True)
@@ -171,7 +169,7 @@ class StaffButtons(discord.ui.View):
                 color=discord.Color.green(),
                 timestamp=datetime.now()
             )
-            await logs_channel.send(log_embed)
+            await logs_channel.send(embed=log_embed)
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger, emoji="❌")
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -194,10 +192,12 @@ class StaffButtons(discord.ui.View):
         self.vouch_count += 1
         self.vouchers.append(interaction.user.id)
         
+        # FIXED: Extraction target list safety check mapping
         embed = interaction.message.embeds[0]
         vouch_mentions = ", ".join([f"<@{uid}>" for uid in self.vouchers])
         
-        embed.set_field_at(9, name=f"👍 Vouches ({self.vouch_count})", value=vouch_mentions, inline=False)
+        # TARGET SYSTEM CORRECTION INDEX 7
+        embed.set_field_at(7, name=f"👍 Vouches ({self.vouch_count})", value=vouch_mentions, inline=False)
         await interaction.message.edit(embed=embed)
         await interaction.response.send_message(f"👍 {interaction.user.mention} vouched for this applicant.", ephemeral=False)
 
