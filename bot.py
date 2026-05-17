@@ -222,7 +222,7 @@ async def setup_whitelist(ctx):
         await ctx.send(f"⚠️ This command must be run inside the designated registration channel (<#{PUBLIC_APPLY_CHANNEL_ID}>)!")
         return
 
-        embed = discord.Embed(
+    embed = discord.Embed(
         title="📥 Project Rev RP Whitelist Application Portal", 
         description=(
             "Welcome to the official **Project Rev RP Whitelist Process**. "
@@ -238,8 +238,6 @@ async def setup_whitelist(ctx):
         ), 
         color=discord.Color.from_rgb(46, 204, 113)
     )
-
-
     embed.set_footer(text="Click the green button below to open up your registration pop-up.")
     await ctx.send(embed=embed, view=SetupView())
 
