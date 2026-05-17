@@ -222,19 +222,23 @@ async def setup_whitelist(ctx):
         await ctx.send(f"⚠️ This command must be run inside the designated registration channel (<#{PUBLIC_APPLY_CHANNEL_ID}>)!")
         return
 
-    embed = discord.Embed(
+        embed = discord.Embed(
         title="📥 Project Rev RP Whitelist Application Portal", 
         description=(
             "Welcome to the official **Project Rev RP Whitelist Process**. "
             "Please read the server guidelines below before submitting an application.\n\n"
-            "**📋 Requirements:**\n"
-            "• You must possess a legal copy of Grand Theft Auto V.\n"
-            "• You must have a functional headset/microphone setup.\n"
-            "• Detailed character backgrounds provide higher approval rates.\n"
-            "• ⚠️ **IMPORTANT NAME RULE:** The name you fill out in the **👤 Name** field on this application form **must match your FiveM client profile name exactly** when connecting to our game server later! If they do not match, you will be automatically disconnected."
+            "**📋 SERVER REQUIREMENTS:**\n"
+            "🔹 You must possess a legal copy of Grand Theft Auto V.\n"
+            "🔹 You must have a functional headset / microphone setup.\n"
+            "🔹 Detailed character backgrounds provide higher approval rates.\n\n"
+            "⚠️ **IMPORTANT NAME RULE:**\n"
+            "The name you fill out in the **👤 Name** field on this application form "
+            "**must match your FiveM client profile name exactly** when connecting to our "
+            "game server later! If they do not match, you will be automatically disconnected."
         ), 
         color=discord.Color.from_rgb(46, 204, 113)
     )
+
     embed.set_footer(text="Click the green button below to open up your registration pop-up.")
     await ctx.send(embed=embed, view=SetupView())
 
